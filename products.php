@@ -70,6 +70,9 @@ if (!$result) {
                             '<?php echo htmlspecialchars($row['category_name']); ?>', 
                             <?php echo $row['stock_quantity']; ?>
                         )">
+                        <button class="wishlist-btn" onclick="event.stopPropagation(); toggleWishlist('<?php echo $row['product_id']; ?>', this);" title="Thêm vào yêu thích">
+                            <i class="far fa-heart"></i>
+                        </button>
                         <img src="<?php echo htmlspecialchars($row['image_url']); ?>" 
                              alt="<?php echo htmlspecialchars($row['product_name']); ?>">
                         <h3><?php echo htmlspecialchars($row['product_name']); ?></h3>
@@ -229,6 +232,78 @@ if (!$result) {
             if (event.target == document.getElementById('productModal')) {
                 closeModal();
             }
+        }
+        
+        // Toggle wishlist
+        function toggleWishlist(productId, button) {
+            <?php if (!isset($_SESSION['user_id'])): ?>
+                if (confirm('Bạn cần đăng nhập để thêm vào yêu thích. Đến trang đăng nhập?')) {
+                    window.location.href = 'login.php';
+                }
+                return;
+            <?php endif; ?>
+            
+            fetch('toggle_wishlist.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    product_id: productId,
+                    action: 'toggle'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const icon = button.querySelector('i');
+                    if (data.in_wishlist) {
+                        icon.classList.remove('far');
+                        icon.classList.add('fas');
+                        button.style.color = '#dc3545';
+                        button.title = 'Xóa khỏi yêu thích';
+                    } else {
+                        icon.classList.remove('fas');
+                        icon.classList.add('far');
+                        button.style.color = '';
+                        button.title = 'Thêm vào yêu thích';
+                    }
+                } else {
+                    alert(data.message || 'Có lỗi xảy ra');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra!');
+            });
+        }
+        
+        // Load wishlist status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php if (isset($_SESSION['user_id'])): ?>
+                loadWishlistStatus();
+            <?php endif; ?>
+        });
+        
+        function loadWishlistStatus() {
+            fetch('get_wishlist_status.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.wishlist.forEach(productId => {
+                            const buttons = document.querySelectorAll(`button[onclick*="${productId}"]`);
+                            buttons.forEach(button => {
+                                if (button.classList.contains('wishlist-btn')) {
+                                    const icon = button.querySelector('i');
+                                    icon.classList.remove('far');
+                                    icon.classList.add('fas');
+                                    button.style.color = '#dc3545';
+                                    button.title = 'Xóa khỏi yêu thích';
+                                }
+                            });
+                        });
+                    }
+                });
         }
     </script>
       <?php include 'footer.php'; ?>

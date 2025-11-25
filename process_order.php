@@ -23,6 +23,9 @@ $phone = $_POST['phone'] ?? '';
 $address = $_POST['address'] ?? '';
 $notes = $_POST['notes'] ?? '';
 $total_amount = $_POST['total_amount'] ?? 0;
+$payment_method = $_POST['payment_method'] ?? 'cod';
+$promotion_id = $_POST['promotion_id'] ?? null;
+$discount_amount = $_POST['discount_amount'] ?? 0;
 
 // Validate dữ liệu
 if (empty($full_name) || empty($email) || empty($phone) || empty($address)) {
@@ -63,10 +66,11 @@ try {
     }
 
     // Tạo đơn hàng mới
-    $order_sql = "INSERT INTO orders (user_id, full_name, email, phone, address, notes, total_amount, order_status, created_at) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, 'Chờ xác nhận', NOW())";
+    $order_status = $payment_method === 'bank_transfer' ? 'Chờ thanh toán' : 'Chờ xác nhận';
+    $order_sql = "INSERT INTO orders (user_id, full_name, email, phone, address, notes, total_amount, payment_method, order_status, created_at) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
     $order_stmt = $conn->prepare($order_sql);
-    $order_stmt->bind_param("isssssd", $user_id, $full_name, $email, $phone, $address, $notes, $calculated_total);
+    $order_stmt->bind_param("isssssdss", $user_id, $full_name, $email, $phone, $address, $notes, $calculated_total, $payment_method, $order_status);
     $order_stmt->execute();
     $order_id = $conn->insert_id;
 
@@ -85,13 +89,46 @@ try {
     $clear_cart_stmt->bind_param("i", $user_id);
     $clear_cart_stmt->execute();
 
+    // Lưu thông tin khuyến mãi nếu có
+    if ($promotion_id && $discount_amount > 0) {
+        require_once 'record_promotion_usage.php';
+        recordPromotionUsage($conn, $promotion_id, $user_id, $order_id, $discount_amount);
+    }
+
+    // Xử lý upload ảnh chuyển khoản nếu có
+    $payment_proof_path = null;
+    if ($payment_method === 'bank_transfer' && isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] === 0) {
+        $upload_dir = 'uploads/payment_proofs/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+        
+        $file_extension = pathinfo($_FILES['payment_proof']['name'], PATHINFO_EXTENSION);
+        $new_filename = 'payment_' . $order_id . '_' . time() . '.' . $file_extension;
+        $payment_proof_path = $upload_dir . $new_filename;
+        
+        if (move_uploaded_file($_FILES['payment_proof']['tmp_name'], $payment_proof_path)) {
+            // Cập nhật đơn hàng với đường dẫn ảnh
+            $update_proof = $conn->prepare("UPDATE orders SET payment_proof = ? WHERE order_id = ?");
+            $update_proof->bind_param("si", $payment_proof_path, $order_id);
+            $update_proof->execute();
+            $update_proof->close();
+        }
+    }
+
     // Commit transaction
     $conn->commit();
 
+    $message = 'Đặt hàng thành công';
+    if ($payment_method === 'bank_transfer') {
+        $message .= '! Vui lòng chuyển khoản theo thông tin đã cung cấp. Đơn hàng sẽ được xử lý sau khi nhận được thanh toán.';
+    }
+
     echo json_encode([
         'success' => true, 
-        'message' => 'Đặt hàng thành công',
-        'order_id' => $order_id
+        'message' => $message,
+        'order_id' => $order_id,
+        'payment_method' => $payment_method
     ]);
 
 } catch (Exception $e) {

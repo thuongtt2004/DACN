@@ -153,15 +153,12 @@
     padding: 20px;
     border-radius: 10px;
     margin-top: 25px;
-    display: flex !important;
-    justify-content: space-between;
-    align-items: center;
     border: 2px solid #333;
     visibility: visible !important;
 }
 
 .order-summary-modal h3 {
-    margin: 0;
+    margin: 0 0 15px 0;
     color: #333;
     font-size: 1.1em;
     font-weight: 600;
@@ -171,6 +168,38 @@
 .order-summary-modal h3 i {
     margin-right: 10px;
     color: #555;
+}
+
+.price-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.price-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 15px;
+    color: #666;
+}
+
+.price-line.discount-line {
+    color: #28a745;
+    font-weight: 600;
+    padding: 10px;
+    background: white;
+    border-radius: 6px;
+}
+
+.price-line.total-line {
+    border-top: 2px solid #333;
+    margin-top: 10px;
+    padding-top: 15px;
+    font-size: 18px;
+    color: #333;
 }
 
 .modal-total {

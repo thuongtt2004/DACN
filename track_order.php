@@ -7,6 +7,9 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Tự động hủy đơn hàng quá hạn 24h
+require_once 'auto_cancel_expired_orders.php';
+
 $user_id = $_SESSION['user_id'];
 
 // Lấy danh sách đơn hàng của user
@@ -38,18 +41,52 @@ $orders = $order_stmt->get_result();
                 <div class="order-card">
                     <div class="order-header">
                         <div>
-                            <h3>Đơn hàng #<?php echo $order['order_id']; ?></h3>
+                            <h3>Don hàng #<?php echo $order['order_id']; ?></h3>
                             <p>Ngày đặt: <?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?></p>
                         </div>
-                        <span class="order-status status-<?php echo strtolower($order['order_status']); ?>">
-                            <?php echo $order['order_status']; ?>
-                        </span>
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                            <span class="order-status status-<?php echo strtolower($order['order_status']); ?>">
+                                <?php echo $order['order_status']; ?>
+                            </span>
+                            <?php if ($order['payment_method'] === 'bank_transfer' && $order['order_status'] === 'Chờ thanh toán'): ?>
+                                <span style="background:#dc3545;color:white;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">
+                                    <i class="fas fa-exclamation-circle"></i> Chưa thanh toán
+                                </span>
+                            <?php endif; ?>
+                        </div>
                     </div>
 
                     <div class="order-details">
                         <p><strong>Người nhận:</strong> <?php echo htmlspecialchars($order['full_name']); ?></p>
                         <p><strong>Địa chỉ:</strong> <?php echo htmlspecialchars($order['address']); ?></p>
                         <p><strong>Số điện thoại:</strong> <?php echo htmlspecialchars($order['phone']); ?></p>
+                        <p><strong>Hình thức thanh toán:</strong> 
+                            <?php if ($order['payment_method'] === 'bank_transfer'): ?>
+                                <span style="color:#dc3545;font-weight:600;"><i class="fas fa-university"></i> Chuyển khoản</span>
+                            <?php else: ?>
+                                <span style="color:#28a745;font-weight:600;"><i class="fas fa-money-bill-wave"></i> COD</span>
+                            <?php endif; ?>
+                        </p>
+                        
+                        <?php if ($order['payment_method'] === 'bank_transfer' && $order['order_status'] === 'Chờ thanh toán'): 
+                            $created_time = strtotime($order['order_date']);
+                            $hours_passed = floor((time() - $created_time) / 3600);
+                            $hours_left = 24 - $hours_passed;
+                        ?>
+                            <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:15px 0;border-radius:8px;">
+                                <p style="margin:0;color:#856404;font-weight:600;">
+                                    <i class="fas fa-clock"></i> 
+                                    <?php if ($hours_left > 0): ?>
+                                        Còn <strong><?php echo $hours_left; ?> giờ</strong> để hoàn tất thanh toán
+                                    <?php else: ?>
+                                        Đơn hàng sắp hết hạn thanh toán!
+                                    <?php endif; ?>
+                                </p>
+                                <p style="margin:5px 0 0 0;color:#856404;font-size:13px;">
+                                    Vui lòng chuyển khoản theo thông tin đã gửi sau khi đặt hàng
+                                </p>
+                            </div>
+                        <?php endif; ?>
                         
                         <?php if ($order['notes']): ?>
                             <p><strong>Ghi chú:</strong> <?php echo htmlspecialchars($order['notes']); ?></p>

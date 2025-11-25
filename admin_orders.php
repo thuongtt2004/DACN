@@ -4,7 +4,7 @@ require_once 'config/connect.php';
 
 // Kiểm tra đăng nhập admin
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: admin_login.php');
+    header('Location: login_page.php');
     exit();
 }
 
@@ -53,6 +53,7 @@ $result = $conn->query($sql);
                     <th>Mã đơn</th>
                     <th>Khách hàng</th>
                     <th>Tổng tiền</th>
+                    <th>Hình thức TT</th>
                     <th>Ngày đặt</th>
                     <th>Trạng thái</th>
                     <th>Thao tác</th>
@@ -64,11 +65,23 @@ $result = $conn->query($sql);
                         <td>#<?php echo $order['order_id']; ?></td>
                         <td><?php echo htmlspecialchars($order['full_name']); ?></td>
                         <td><?php echo number_format($order['total_amount'], 0, ',', '.'); ?> VNĐ</td>
+                        <td>
+                            <?php if ($order['payment_method'] === 'bank_transfer'): ?>
+                                <span style="background:#dc3545;color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600;">
+                                    <i class="fas fa-university"></i> Chuyển khoản
+                                </span>
+                            <?php else: ?>
+                                <span style="background:#28a745;color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600;">
+                                    <i class="fas fa-money-bill-wave"></i> COD
+                                </span>
+                            <?php endif; ?>
+                        </td>
                         <td><?php echo date('d/m/Y H:i', strtotime($order['created_at'])); ?></td>
                         <td>
                             <form method="POST" action="" style="display: flex; align-items: center; gap: 5px;">
                                 <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
                                 <select name="status" class="status-select">
+                                    <option value="Chờ thanh toán" <?php if($order['order_status'] == 'Chờ thanh toán') echo 'selected'; ?>>Chờ thanh toán</option>
                                     <option value="Chờ xác nhận" <?php if($order['order_status'] == 'Chờ xác nhận') echo 'selected'; ?>>Chờ xác nhận</option>
                                     <option value="Đã xác nhận" <?php if($order['order_status'] == 'Đã xác nhận') echo 'selected'; ?>>Đã xác nhận</option>
                                     <option value="Đang giao" <?php if($order['order_status'] == 'Đang giao') echo 'selected'; ?>>Đang giao</option>
@@ -105,6 +118,15 @@ $result = $conn->query($sql);
                                 <p><strong>Email:</strong> <?php echo htmlspecialchars($order['email']); ?></p>
                                 <?php if ($order['notes']): ?>
                                     <p><strong>Ghi chú:</strong> <?php echo htmlspecialchars($order['notes']); ?></p>
+                                <?php endif; ?>
+                                <p><strong>Hình thức thanh toán:</strong> 
+                                    <?php echo $order['payment_method'] === 'bank_transfer' ? 'Chuyển khoản' : 'COD'; ?>
+                                </p>
+                                <?php if ($order['payment_method'] === 'bank_transfer' && !empty($order['payment_proof'])): ?>
+                                    <p><strong>Chứng từ thanh toán:</strong></p>
+                                    <img src="<?php echo htmlspecialchars($order['payment_proof']); ?>" 
+                                         style="max-width: 300px; border-radius: 8px; margin-top: 10px; cursor: pointer;"
+                                         onclick="window.open('<?php echo htmlspecialchars($order['payment_proof']); ?>', '_blank')">
                                 <?php endif; ?>
                                 <table style="width: 100%; margin-top: 10px;">
                                     <tr>

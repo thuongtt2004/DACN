@@ -1,7 +1,27 @@
 <?php
 require_once 'config/connect.php';
 
-// Lấy 4 sản phẩm mới nhất thay vì 5
+// Lấy flash sale đang hoạt động
+$now = date('Y-m-d H:i:s');
+$flash_sale_query = "SELECT * FROM promotions 
+                     WHERE promotion_type = 'flash_sale' 
+                     AND status = 'active' 
+                     AND '$now' BETWEEN start_date AND end_date 
+                     ORDER BY discount_value DESC 
+                     LIMIT 1";
+$flash_sale_result = $conn->query($flash_sale_query);
+$flash_sale = $flash_sale_result->num_rows > 0 ? $flash_sale_result->fetch_assoc() : null;
+
+// Lấy các khuyến mãi nổi bật khác
+$promotions_query = "SELECT * FROM promotions 
+                     WHERE status = 'active' 
+                     AND '$now' BETWEEN start_date AND end_date 
+                     AND promotion_type IN ('coupon', 'minimum_order')
+                     ORDER BY created_at DESC 
+                     LIMIT 3";
+$promotions_result = $conn->query($promotions_query);
+
+// Lấy 4 sản phẩm mới nhất
 $sql = "SELECT p.*, c.category_name 
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.category_id 
@@ -22,9 +42,86 @@ if (!$result) {
     <title>TTHUONG Store</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/trangchu.css">
+    <link rel="stylesheet" href="css/promotions.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <?php require_once 'header.php'; ?>
+
+    <!-- Flash Sale Banner -->
+    <?php if ($flash_sale): ?>
+    <section class="flash-sale-banner">
+        <div class="flash-sale-content">
+            <div class="flash-sale-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <div class="flash-sale-info">
+                <h2><i class="fas fa-fire"></i> FLASH SALE - <?php echo htmlspecialchars($flash_sale['promotion_name']); ?></h2>
+                <p class="flash-sale-desc">
+                    Giảm ngay 
+                    <strong>
+                        <?php echo $flash_sale['discount_type'] == 'percentage' 
+                            ? $flash_sale['discount_value'] . '%' 
+                            : number_format($flash_sale['discount_value']) . 'đ'; ?>
+                    </strong>
+                    cho toàn bộ đơn hàng!
+                    <?php if ($flash_sale['min_order_amount'] > 0): ?>
+                        <span class="min-order">Đơn tối thiểu: <?php echo number_format($flash_sale['min_order_amount']); ?>đ</span>
+                    <?php endif; ?>
+                </p>
+                <p class="flash-sale-time">
+                    <i class="fas fa-clock"></i> Kết thúc: 
+                    <span class="countdown" data-end="<?php echo $flash_sale['end_date']; ?>"></span>
+                </p>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <!-- Promotions Section -->
+    <?php if ($promotions_result->num_rows > 0): ?>
+    <section class="promotions-section">
+        <h2><i class="fas fa-tags"></i> Khuyến mãi hot</h2>
+        <div class="promotions-grid">
+            <?php while ($promo = $promotions_result->fetch_assoc()): ?>
+            <div class="promo-card">
+                <div class="promo-badge">
+                    <?php 
+                    $badge_icon = $promo['promotion_type'] == 'coupon' ? 'ticket-alt' : 'gift';
+                    ?>
+                    <i class="fas fa-<?php echo $badge_icon; ?>"></i>
+                </div>
+                <div class="promo-content">
+                    <h3><?php echo htmlspecialchars($promo['promotion_name']); ?></h3>
+                    <p class="promo-discount">
+                        Giảm <strong>
+                            <?php echo $promo['discount_type'] == 'percentage' 
+                                ? $promo['discount_value'] . '%' 
+                                : number_format($promo['discount_value']) . 'đ'; ?>
+                        </strong>
+                    </p>
+                    <?php if ($promo['promotion_type'] == 'coupon'): ?>
+                        <div class="promo-code">
+                            Mã: <span class="code-text"><?php echo htmlspecialchars($promo['promotion_code']); ?></span>
+                            <button class="copy-code" onclick="copyCode('<?php echo $promo['promotion_code']; ?>')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($promo['min_order_amount'] > 0): ?>
+                        <p class="promo-condition">
+                            <i class="fas fa-info-circle"></i> Đơn từ <?php echo number_format($promo['min_order_amount']); ?>đ
+                        </p>
+                    <?php endif; ?>
+                    <p class="promo-expire">
+                        HSD: <?php echo date('d/m/Y', strtotime($promo['end_date'])); ?>
+                    </p>
+                </div>
+            </div>
+            <?php endwhile; ?>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <section id="home">
         <div class="slideshow-container">
@@ -179,6 +276,58 @@ if (!$result) {
     .catch(error => {
         console.error('Error:', error);
         alert('Có lỗi xảy ra: ' + error.message);
+    });
+}
+
+// Countdown timer for flash sale
+document.addEventListener('DOMContentLoaded', function() {
+    const countdownEl = document.querySelector('.countdown');
+    if (countdownEl) {
+        const endDate = new Date(countdownEl.dataset.end).getTime();
+        
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = endDate - now;
+            
+            if (distance < 0) {
+                countdownEl.textContent = 'Đã kết thúc';
+                clearInterval(countdownInterval);
+                return;
+            }
+            
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            let countdown = '';
+            if (days > 0) countdown += days + ' ngày ';
+            countdown += hours.toString().padStart(2, '0') + ':' + 
+                        minutes.toString().padStart(2, '0') + ':' + 
+                        seconds.toString().padStart(2, '0');
+            
+            countdownEl.textContent = countdown;
+        }
+        
+        updateCountdown();
+        const countdownInterval = setInterval(updateCountdown, 1000);
+    }
+});
+
+// Copy coupon code
+function copyCode(code) {
+    navigator.clipboard.writeText(code).then(() => {
+        alert('Đã sao chép mã: ' + code);
+    }).catch(err => {
+        console.error('Lỗi sao chép:', err);
+        // Fallback method
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('Đã sao chép mã: ' + code);
     });
 }
     </script>
